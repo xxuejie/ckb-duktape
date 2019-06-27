@@ -1,0 +1,2 @@
+*link_libgcc:
+-L%:getenv(NEWLIB /lib) -L .%s
