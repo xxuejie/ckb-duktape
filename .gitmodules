@@ -1,0 +1,3 @@
+[submodule "deps/newlib"]
+	path = deps/newlib
+	url = https://github.com/nervosnetwork/riscv-newlib
