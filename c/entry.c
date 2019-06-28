@@ -17,11 +17,16 @@ static duk_ret_t duk_ckb_debug(duk_context *ctx) {
   return 0;
 }
 
+void ckb_init(duk_context *ctx) {
+  duk_push_object(ctx);
+  duk_push_c_function(ctx, duk_ckb_debug, DUK_VARARGS);
+  duk_put_prop_string(ctx, -2, "debug");
+  duk_put_global_string(ctx, "CKB");
+}
+
 int main(int argc, char *argv[]) {
   duk_context *ctx = duk_create_heap_default();
-
-  duk_push_c_function(ctx, duk_ckb_debug, DUK_VARARGS);
-  duk_put_global_string(ctx, "ckb_debug");
+  ckb_init(ctx);
 
   if (argc == 2) {
     duk_eval_string(ctx, argv[1]);
