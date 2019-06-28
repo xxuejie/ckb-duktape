@@ -9,8 +9,14 @@ CURRENT_DIR := $(shell pwd)
 
 all: build/duktape
 
-build/duktape: c/entry.c duktape/duktape.c $(NEWLIB_LIB)
-	NEWLIB=build/newlib/$(TARGET) $(CC) -specs newlib-gcc.specs $(CFLAGS) $^ -o $@ $(LDFLAGS)
+build/duktape: build/entry.o build/duktape.o $(NEWLIB_LIB)
+	NEWLIB=build/newlib/$(TARGET) $(LD) -specs newlib-gcc.specs build/entry.o build/duktape.o -o $@ $(LDFLAGS)
+
+build/entry.o: c/entry.c $(NEWLIB_LIB)
+	NEWLIB=build/newlib/$(TARGET) $(CC) -specs newlib-gcc.specs $(CFLAGS) $< -c -o $@
+
+build/duktape.o: duktape/duktape.c $(NEWLIB_LIB)
+	NEWLIB=build/newlib/$(TARGET) $(CC) -specs newlib-gcc.specs $(CFLAGS) $< -c -o $@
 
 $(NEWLIB_LIB):
 	mkdir -p build/build-newlib && \
