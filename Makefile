@@ -1,7 +1,8 @@
 TARGET := riscv64-unknown-elf
 CC := $(TARGET)-gcc
 LD := $(TARGET)-gcc
-CFLAGS := -Os -DCKB_NO_MMU -D__riscv_soft_float -D__riscv_float_abi_soft -Iduktape -Ic -Wall -Werror
+CFLAGS := -Os -DCKB_NO_MMU -D__riscv_soft_float -D__riscv_float_abi_soft
+APP_CFLAGS := $(CFLAGS) -Iduktape -Ic -Wall -Werror
 # LDFLAGS := -lm -g
 LDFLAGS := -lm -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections -Wl,-s
 NEWLIB_LIB := build/newlib/$(TARGET)/lib/libc.a
@@ -13,10 +14,10 @@ build/duktape: build/entry.o build/duktape.o $(NEWLIB_LIB)
 	NEWLIB=build/newlib/$(TARGET) $(LD) -specs newlib-gcc.specs build/entry.o build/duktape.o -o $@ $(LDFLAGS)
 
 build/entry.o: c/entry.c $(NEWLIB_LIB)
-	NEWLIB=build/newlib/$(TARGET) $(CC) -specs newlib-gcc.specs $(CFLAGS) $< -c -o $@
+	NEWLIB=build/newlib/$(TARGET) $(CC) -specs newlib-gcc.specs $(APP_CFLAGS) $< -c -o $@
 
 build/duktape.o: duktape/duktape.c $(NEWLIB_LIB)
-	NEWLIB=build/newlib/$(TARGET) $(CC) -specs newlib-gcc.specs $(CFLAGS) $< -c -o $@
+	NEWLIB=build/newlib/$(TARGET) $(CC) -specs newlib-gcc.specs $(APP_CFLAGS) $< -c -o $@
 
 $(NEWLIB_LIB):
 	mkdir -p build/build-newlib && \
@@ -29,6 +30,7 @@ clean-newlib:
 	rm -rf build/newlib build/build-newlib
 
 clean: clean-newlib
+	rm -rf build/*.o build/duktape
 
 dist: clean all
 
