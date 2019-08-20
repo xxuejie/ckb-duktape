@@ -267,7 +267,10 @@ int main(int argc, char *argv[]) {
   ckb_init(ctx);
 
   if (argc == 2) {
-    duk_eval_string(ctx, argv[1]);
+    if (duk_peval_string(ctx, argv[1]) != 0) {
+      ckb_debug(duk_safe_to_string(ctx, -1));
+      return -2;
+    }
     duk_pop(ctx); /* pop eval result */
   } else if (argc == 3) {
     /* TODO: load source from one of the dep */
