@@ -75,8 +75,12 @@ static duk_ret_t duk_ckb_raw_load(duk_context *ctx, load_function f) {
   duk_pop_n(ctx, 4);
 
   volatile uint64_t len = buffer_size;
-  check_ckb_syscall_ret(ctx, f(buffer, &len, offset, index, source));
-  push_checked_integer(ctx, len);
+  int ret = f(buffer, &len, offset, index, source);
+  if (ret < 0) {
+    duk_push_int(ctx, ret);
+  } else {
+    push_checked_integer(ctx, len);
+  }
 
   return 1;
 }
@@ -88,13 +92,17 @@ static duk_ret_t duk_ckb_load(duk_context *ctx, load_function f) {
     return duk_throw(ctx);
   }
 
-  size_t offset = duk_get_int(ctx, 1);
-  size_t index = duk_get_int(ctx, 2);
-  size_t source = duk_get_int(ctx, 3);
+  size_t offset = duk_get_int(ctx, 0);
+  size_t index = duk_get_int(ctx, 1);
+  size_t source = duk_get_int(ctx, 2);
   duk_pop_n(ctx, 3);
 
   volatile uint64_t len = 0;
-  check_ckb_syscall_ret(ctx, f(NULL, &len, offset, index, source));
+  int ret = f(NULL, &len, offset, index, source);
+  if (ret != 0) {
+    duk_push_int(ctx, ret);
+    return 1;
+  }
 
   duk_push_fixed_buffer(ctx, len);
   void *p = duk_get_buffer(ctx, 0, NULL);
@@ -126,8 +134,12 @@ static duk_ret_t duk_ckb_raw_load_by_field(duk_context *ctx,
   duk_pop_n(ctx, 5);
 
   volatile uint64_t len = buffer_size;
-  check_ckb_syscall_ret(ctx, f(buffer, &len, offset, index, source, field));
-  push_checked_integer(ctx, len);
+  int ret = f(buffer, &len, offset, index, source, field);
+  if (ret < 0) {
+    duk_push_int(ctx, ret);
+  } else {
+    push_checked_integer(ctx, len);
+  }
 
   return 1;
 }
@@ -140,14 +152,18 @@ static duk_ret_t duk_ckb_load_by_field(duk_context *ctx,
     return duk_throw(ctx);
   }
 
-  size_t offset = duk_get_int(ctx, 1);
-  size_t index = duk_get_int(ctx, 2);
-  size_t source = duk_get_int(ctx, 3);
-  size_t field = duk_get_int(ctx, 4);
+  size_t offset = duk_get_int(ctx, 0);
+  size_t index = duk_get_int(ctx, 1);
+  size_t source = duk_get_int(ctx, 2);
+  size_t field = duk_get_int(ctx, 3);
   duk_pop_n(ctx, 4);
 
   volatile uint64_t len = 0;
-  check_ckb_syscall_ret(ctx, f(NULL, &len, offset, index, source, field));
+  int ret = f(NULL, &len, offset, index, source, field);
+  if (ret != 0) {
+    duk_push_int(ctx, ret);
+    return 1;
+  }
 
   duk_push_fixed_buffer(ctx, len);
   void *p = duk_get_buffer(ctx, 0, NULL);
