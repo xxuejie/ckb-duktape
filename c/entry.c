@@ -31,6 +31,20 @@ static void check_ckb_syscall_ret(duk_context *ctx, int ret) {
   }
 }
 
+static size_t extract_source(duk_context *ctx, duk_idx_t idx) {
+  size_t source = 0xFFFFFFFFFFFFFFFF;
+  if (duk_is_string(ctx, idx)) {
+    const char *str = duk_get_string(ctx, idx);
+    source = strtol(str, NULL, 10);
+  } else if (duk_is_number(ctx, idx)) {
+    source = duk_get_int(ctx, idx);
+  } else {
+    duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid source type!");
+    (void)duk_throw(ctx);
+  }
+  return source;
+}
+
 static duk_ret_t duk_ckb_debug(duk_context *ctx) {
   duk_push_string(ctx, " ");
   duk_insert(ctx, 0);
@@ -62,7 +76,7 @@ static duk_ret_t duk_ckb_load_hash(duk_context *ctx, load_hash_function f) {
 
 static duk_ret_t duk_ckb_raw_load(duk_context *ctx, load_function f) {
   if (!(duk_is_buffer_data(ctx, 0) && duk_is_number(ctx, 1) &&
-        duk_is_number(ctx, 2) && duk_is_number(ctx, 3))) {
+        duk_is_number(ctx, 2))) {
     duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
     return duk_throw(ctx);
   }
@@ -71,13 +85,14 @@ static duk_ret_t duk_ckb_raw_load(duk_context *ctx, load_function f) {
   void *buffer = duk_get_buffer_data(ctx, 0, &buffer_size);
   size_t offset = duk_get_int(ctx, 1);
   size_t index = duk_get_int(ctx, 2);
-  size_t source = duk_get_int(ctx, 3);
+  size_t source = extract_source(ctx, 3);
   duk_pop_n(ctx, 4);
 
   volatile uint64_t len = buffer_size;
   int ret = f(buffer, &len, offset, index, source);
-  if (ret < 0) {
-    duk_push_int(ctx, ret);
+
+  if (ret != 0) {
+    duk_push_int(ctx, -ret);
   } else {
     push_checked_integer(ctx, len);
   }
@@ -86,21 +101,20 @@ static duk_ret_t duk_ckb_raw_load(duk_context *ctx, load_function f) {
 }
 
 static duk_ret_t duk_ckb_load(duk_context *ctx, load_function f) {
-  if (!(duk_is_number(ctx, 0) && duk_is_number(ctx, 1) &&
-        duk_is_number(ctx, 2))) {
+  if (!(duk_is_number(ctx, 0) && duk_is_number(ctx, 1))) {
     duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
     return duk_throw(ctx);
   }
 
   size_t offset = duk_get_int(ctx, 0);
   size_t index = duk_get_int(ctx, 1);
-  size_t source = duk_get_int(ctx, 2);
+  size_t source = extract_source(ctx, 2);
   duk_pop_n(ctx, 3);
 
   volatile uint64_t len = 0;
   int ret = f(NULL, &len, offset, index, source);
   if (ret != 0) {
-    duk_push_int(ctx, ret);
+    duk_push_int(ctx, -ret);
     return 1;
   }
 
@@ -119,8 +133,7 @@ static duk_ret_t duk_ckb_load(duk_context *ctx, load_function f) {
 static duk_ret_t duk_ckb_raw_load_by_field(duk_context *ctx,
                                            load_by_field_function f) {
   if (!(duk_is_buffer_data(ctx, 0) && duk_is_number(ctx, 1) &&
-        duk_is_number(ctx, 2) && duk_is_number(ctx, 3) &&
-        duk_is_number(ctx, 4))) {
+        duk_is_number(ctx, 2) && duk_is_number(ctx, 4))) {
     duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
     return duk_throw(ctx);
   }
@@ -129,14 +142,14 @@ static duk_ret_t duk_ckb_raw_load_by_field(duk_context *ctx,
   void *buffer = duk_get_buffer_data(ctx, 0, &buffer_size);
   size_t offset = duk_get_int(ctx, 1);
   size_t index = duk_get_int(ctx, 2);
-  size_t source = duk_get_int(ctx, 3);
+  size_t source = extract_source(ctx, 3);
   size_t field = duk_get_int(ctx, 4);
   duk_pop_n(ctx, 5);
 
   volatile uint64_t len = buffer_size;
   int ret = f(buffer, &len, offset, index, source, field);
-  if (ret < 0) {
-    duk_push_int(ctx, ret);
+  if (ret != 0) {
+    duk_push_int(ctx, -ret);
   } else {
     push_checked_integer(ctx, len);
   }
@@ -147,21 +160,21 @@ static duk_ret_t duk_ckb_raw_load_by_field(duk_context *ctx,
 static duk_ret_t duk_ckb_load_by_field(duk_context *ctx,
                                        load_by_field_function f) {
   if (!(duk_is_number(ctx, 0) && duk_is_number(ctx, 1) &&
-        duk_is_number(ctx, 2) && duk_is_number(ctx, 3))) {
+        duk_is_number(ctx, 3))) {
     duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
     return duk_throw(ctx);
   }
 
   size_t offset = duk_get_int(ctx, 0);
   size_t index = duk_get_int(ctx, 1);
-  size_t source = duk_get_int(ctx, 2);
+  size_t source = extract_source(ctx, 2);
   size_t field = duk_get_int(ctx, 3);
   duk_pop_n(ctx, 4);
 
   volatile uint64_t len = 0;
   int ret = f(NULL, &len, offset, index, source, field);
   if (ret != 0) {
-    duk_push_int(ctx, ret);
+    duk_push_int(ctx, -ret);
     return 1;
   }
 
@@ -233,8 +246,23 @@ static duk_ret_t duk_ckb_load_input_by_field(duk_context *ctx) {
   return duk_ckb_load_by_field(ctx, ckb_load_input_by_field);
 }
 
-void ckb_init(duk_context *ctx) {
+static duk_ret_t duk_ckb_raw_load_cell_data(duk_context *ctx) {
+  return duk_ckb_raw_load(ctx, ckb_load_cell_data);
+}
+
+static duk_ret_t duk_ckb_load_cell_data(duk_context *ctx) {
+  return duk_ckb_load(ctx, ckb_load_cell_data);
+}
+
+void ckb_init(duk_context *ctx, int argc, char *argv[]) {
   duk_push_object(ctx);
+
+  duk_push_array(ctx);
+  for (int i = 0; i < argc; i++) {
+    duk_push_string(ctx, argv[i]);
+    duk_put_prop_index(ctx, -2, i);
+  }
+  duk_put_prop_string(ctx, -2, "ARGV");
 
   duk_push_c_function(ctx, duk_ckb_debug, DUK_VARARGS);
   duk_put_prop_string(ctx, -2, "debug");
@@ -275,25 +303,74 @@ void ckb_init(duk_context *ctx) {
   duk_push_c_function(ctx, duk_ckb_load_input_by_field, 4);
   duk_put_prop_string(ctx, -2, "load_input_by_field");
 
+  duk_push_c_function(ctx, duk_ckb_raw_load_cell_data, 4);
+  duk_put_prop_string(ctx, -2, "raw_load_cell_data");
+  duk_push_c_function(ctx, duk_ckb_load_cell_data, 3);
+  duk_put_prop_string(ctx, -2, "load_cell_data");
+
+  duk_push_object(ctx);
+  duk_push_int(ctx, CKB_SUCCESS);
+  duk_put_prop_string(ctx, -2, "SUCCESS");
+  duk_push_int(ctx, -CKB_INDEX_OUT_OF_BOUND);
+  duk_put_prop_string(ctx, -2, "INDEX_OUT_OF_BOUND");
+  duk_push_int(ctx, -CKB_ITEM_MISSING);
+  duk_put_prop_string(ctx, -2, "ITEM_MISSING");
+  duk_put_prop_string(ctx, -2, "CODE");
+
+  duk_push_object(ctx);
+  duk_push_int(ctx, CKB_SOURCE_INPUT);
+  duk_put_prop_string(ctx, -2, "INPUT");
+  duk_push_int(ctx, CKB_SOURCE_OUTPUT);
+  duk_put_prop_string(ctx, -2, "OUTPUT");
+  duk_push_int(ctx, CKB_SOURCE_CELL_DEP);
+  duk_put_prop_string(ctx, -2, "CELL_DEP");
+  duk_push_int(ctx, CKB_SOURCE_HEADER_DEP);
+  duk_put_prop_string(ctx, -2, "HEADER_DEP");
+  duk_push_sprintf(ctx, "%ld", CKB_SOURCE_GROUP_INPUT);
+  duk_put_prop_string(ctx, -2, "GROUP_INPUT");
+  duk_push_sprintf(ctx, "%ld", CKB_SOURCE_GROUP_OUTPUT);
+  duk_put_prop_string(ctx, -2, "GROUP_OUTPUT");
+  duk_put_prop_string(ctx, -2, "SOURCE");
+
+  duk_push_object(ctx);
+  duk_push_int(ctx, CKB_CELL_FIELD_CAPACITY);
+  duk_put_prop_string(ctx, -2, "CAPACITY");
+  duk_push_int(ctx, CKB_CELL_FIELD_DATA_HASH);
+  duk_put_prop_string(ctx, -2, "DATA_HASH");
+  duk_push_int(ctx, CKB_CELL_FIELD_LOCK);
+  duk_put_prop_string(ctx, -2, "LOCK");
+  duk_push_int(ctx, CKB_CELL_FIELD_LOCK_HASH);
+  duk_put_prop_string(ctx, -2, "LOCK_HASH");
+  duk_push_int(ctx, CKB_CELL_FIELD_TYPE);
+  duk_put_prop_string(ctx, -2, "TYPE");
+  duk_push_int(ctx, CKB_CELL_FIELD_TYPE_HASH);
+  duk_put_prop_string(ctx, -2, "TYPE_HASH");
+  duk_push_int(ctx, CKB_CELL_FIELD_OCCUPIED_CAPACITY);
+  duk_put_prop_string(ctx, -2, "OCCUPIED_CAPACITY");
+  duk_put_prop_string(ctx, -2, "CELL");
+
+  duk_push_object(ctx);
+  duk_push_int(ctx, CKB_INPUT_FIELD_OUT_POINT);
+  duk_put_prop_string(ctx, -2, "OUT_POINT");
+  duk_push_int(ctx, CKB_INPUT_FIELD_SINCE);
+  duk_put_prop_string(ctx, -2, "SINCE");
+  duk_put_prop_string(ctx, -2, "INPUT");
+
   duk_put_global_string(ctx, "CKB");
 }
 
 int main(int argc, char *argv[]) {
   duk_context *ctx = duk_create_heap_default();
-  ckb_init(ctx);
-
-  if (argc == 2) {
-    if (duk_peval_string(ctx, argv[1]) != 0) {
-      ckb_debug(duk_safe_to_string(ctx, -1));
-      return -2;
-    }
-    duk_pop(ctx); /* pop eval result */
-  } else if (argc == 3) {
-    /* TODO: load source from one of the dep */
-  } else {
+  if (argc < 2) {
     return -1;
   }
+  ckb_init(ctx, argc - 2, &argv[2]);
 
+  if (duk_peval_string(ctx, argv[1]) != 0) {
+    ckb_debug(duk_safe_to_string(ctx, -1));
+    return -2;
+  }
+  duk_pop(ctx); /* pop eval result */
   duk_destroy_heap(ctx);
 
   return 0;
