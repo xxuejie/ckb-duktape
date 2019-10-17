@@ -7,19 +7,25 @@ APP_CFLAGS := $(CFLAGS) -Iduktape -Ic -Wall -Werror
 LDFLAGS := -lm -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections -Wl,-s
 CURRENT_DIR := $(shell pwd)
 
-all: build/duktape
+all: build/duktape build/repl
 
 build/duktape: build/entry.o build/duktape.o
-	$(LD) build/entry.o build/duktape.o -o $@ $(LDFLAGS)
+	$(LD) $^ -o $@ $(LDFLAGS)
+
+build/repl: build/repl.o build/duktape.o
+	$(LD) $^ -o $@ $(LDFLAGS)
 
 build/entry.o: c/entry.c
+	$(CC) $(APP_CFLAGS) $< -c -o $@
+
+build/repl.o: c/repl.c
 	$(CC) $(APP_CFLAGS) $< -c -o $@
 
 build/duktape.o: duktape/duktape.c
 	$(CC) $(APP_CFLAGS) $< -c -o $@
 
 clean:
-	rm -rf build/*.o build/duktape
+	rm -rf build/*.o build/duktape build/repl
 
 dist: clean all
 

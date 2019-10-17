@@ -4,11 +4,13 @@
 #define SYS_exit 93
 #define SYS_ckb_load_tx_hash 2061
 #define SYS_ckb_load_script_hash 2062
+#define SYS_ckb_load_script 2063
 #define SYS_ckb_load_cell 2071
 #define SYS_ckb_load_header 2072
 #define SYS_ckb_load_input 2073
 #define SYS_ckb_load_witness 2074
 #define SYS_ckb_load_cell_by_field 2081
+#define SYS_ckb_load_header_by_field 2082
 #define SYS_ckb_load_input_by_field 2083
 #define SYS_ckb_load_cell_data_as_code 2091
 #define SYS_ckb_load_cell_data 2092
@@ -32,6 +34,10 @@
 #define CKB_CELL_FIELD_TYPE 4
 #define CKB_CELL_FIELD_TYPE_HASH 5
 #define CKB_CELL_FIELD_OCCUPIED_CAPACITY 6
+
+#define CKB_HEADER_FIELD_EPOCH_NUMBER 0
+#define CKB_HEADER_FIELD_EPOCH_START_BLOCK_NUMBER 1
+#define CKB_HEADER_FIELD_EPOCH_LENGTH 2
 
 #define CKB_INPUT_FIELD_OUT_POINT 0
 #define CKB_INPUT_FIELD_SINCE 1
