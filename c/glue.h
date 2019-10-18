@@ -63,17 +63,22 @@ typedef int (*load_by_field_function)(void *, uint64_t *, size_t,
                                       size_t, size_t, size_t);
 
 static duk_ret_t duk_ckb_load_hash(duk_context *ctx, load_hash_function f) {
-  char buffer[32];
   uint64_t len = 32;
 
-  check_ckb_syscall_ret(ctx, f(buffer, &len, 0));
+  duk_push_fixed_buffer(ctx, len);
+  void *p = duk_get_buffer(ctx, 0, NULL);
+  check_ckb_syscall_ret(ctx, f(p, &len, 0));
   if (len != 32) {
     duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR,
                           "Invalid CKB hash length: %ld", len);
     return duk_throw(ctx);
   }
 
-  duk_push_lstring(ctx, buffer, 32);
+  /* Create an ArrayBuffer for ease of handling at JS side */
+  duk_push_buffer_object(ctx, 0, 0, len, DUK_BUFOBJ_ARRAYBUFFER);
+  duk_swap(ctx, 0, 1);
+  duk_pop(ctx);
+
   return 1;
 }
 

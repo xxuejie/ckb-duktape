@@ -15,10 +15,10 @@ build/duktape: build/entry.o build/duktape.o
 build/repl: build/repl.o build/duktape.o
 	$(LD) $^ -o $@ $(LDFLAGS)
 
-build/entry.o: c/entry.c
+build/entry.o: c/entry.c c/glue.h
 	$(CC) $(APP_CFLAGS) $< -c -o $@
 
-build/repl.o: c/repl.c
+build/repl.o: c/repl.c c/glue.h
 	$(CC) $(APP_CFLAGS) $< -c -o $@
 
 build/duktape.o: duktape/duktape.c
