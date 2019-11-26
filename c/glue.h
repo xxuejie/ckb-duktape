@@ -57,6 +57,7 @@ static duk_ret_t duk_ckb_debug(duk_context *ctx) {
 }
 
 typedef int (*load_hash_function)(void *, uint64_t *, size_t);
+typedef int (*load_single_function)(void *, uint64_t *, size_t);
 typedef int (*load_function)(void *, uint64_t *, size_t, size_t,
                              size_t);
 typedef int (*load_by_field_function)(void *, uint64_t *, size_t,
@@ -73,6 +74,57 @@ static duk_ret_t duk_ckb_load_hash(duk_context *ctx, load_hash_function f) {
                           "Invalid CKB hash length: %ld", len);
     return duk_throw(ctx);
   }
+
+  /* Create an ArrayBuffer for ease of handling at JS side */
+  duk_push_buffer_object(ctx, 0, 0, len, DUK_BUFOBJ_ARRAYBUFFER);
+  duk_swap(ctx, 0, 1);
+  duk_pop(ctx);
+
+  return 1;
+}
+
+static duk_ret_t duk_ckb_raw_load_single(duk_context *ctx, load_single_function f) {
+  if (!(duk_is_buffer_data(ctx, 0) && duk_is_number(ctx, 1))) {
+    duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
+    return duk_throw(ctx);
+  }
+
+  size_t buffer_size = 0;
+  void *buffer = duk_get_buffer_data(ctx, 0, &buffer_size);
+  size_t offset = duk_get_int(ctx, 1);
+  duk_pop_n(ctx, 2);
+
+  uint64_t len = buffer_size;
+  int ret = f(buffer, &len, offset);
+
+  if (ret != 0) {
+    duk_push_int(ctx, -ret);
+  } else {
+    push_checked_integer(ctx, len);
+  }
+
+  return 1;
+}
+
+static duk_ret_t duk_ckb_load_single(duk_context *ctx, load_single_function f) {
+  if (!duk_is_number(ctx, 0)) {
+    duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
+    return duk_throw(ctx);
+  }
+
+  size_t offset = duk_get_int(ctx, 0);
+  duk_pop_n(ctx, 1);
+
+  uint64_t len = 0;
+  int ret = f(NULL, &len, offset);
+  if (ret != 0) {
+    duk_push_int(ctx, -ret);
+    return 1;
+  }
+
+  duk_push_fixed_buffer(ctx, len);
+  void *p = duk_get_buffer(ctx, 0, NULL);
+  check_ckb_syscall_ret(ctx, f(p, &len, offset));
 
   /* Create an ArrayBuffer for ease of handling at JS side */
   duk_push_buffer_object(ctx, 0, 0, len, DUK_BUFOBJ_ARRAYBUFFER);
@@ -206,6 +258,22 @@ static duk_ret_t duk_ckb_load_script_hash(duk_context *ctx) {
   return duk_ckb_load_hash(ctx, ckb_load_script_hash);
 }
 
+static duk_ret_t duk_ckb_load_script(duk_context *ctx) {
+  return duk_ckb_load_single(ctx, ckb_load_script);
+}
+
+static duk_ret_t duk_ckb_raw_load_script(duk_context *ctx) {
+  return duk_ckb_raw_load_single(ctx, ckb_load_script);
+}
+
+static duk_ret_t duk_ckb_load_transaction(duk_context *ctx) {
+  return duk_ckb_load_single(ctx, ckb_load_transaction);
+}
+
+static duk_ret_t duk_ckb_raw_load_transaction(duk_context *ctx) {
+  return duk_ckb_raw_load_single(ctx, ckb_load_transaction);
+}
+
 static duk_ret_t duk_ckb_raw_load_cell(duk_context *ctx) {
   return duk_ckb_raw_load(ctx, ckb_load_cell);
 }
@@ -273,6 +341,16 @@ void ckb_init(duk_context *ctx) {
 
   duk_push_c_function(ctx, duk_ckb_load_script_hash, 0);
   duk_put_prop_string(ctx, -2, "load_script_hash");
+
+  duk_push_c_function(ctx, duk_ckb_load_script, 2);
+  duk_put_prop_string(ctx, -2, "load_script");
+  duk_push_c_function(ctx, duk_ckb_raw_load_script, 1);
+  duk_put_prop_string(ctx, -2, "raw_load_script");
+
+  duk_push_c_function(ctx, duk_ckb_load_transaction, 2);
+  duk_put_prop_string(ctx, -2, "load_transaction");
+  duk_push_c_function(ctx, duk_ckb_raw_load_transaction, 1);
+  duk_put_prop_string(ctx, -2, "raw_load_transaction");
 
   duk_push_c_function(ctx, duk_ckb_raw_load_cell, 4);
   duk_put_prop_string(ctx, -2, "raw_load_cell");
