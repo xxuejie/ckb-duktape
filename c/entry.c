@@ -6,7 +6,7 @@
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
 
-int main(int argc, char *argv[]) {
+int main() {
   unsigned char script[SCRIPT_SIZE];
   uint64_t len = SCRIPT_SIZE;
   int ret = ckb_load_script(script, &len, 0);
@@ -29,9 +29,6 @@ int main(int argc, char *argv[]) {
   }
 
   duk_context *ctx = duk_create_heap_default();
-  if (argc != 2) {
-    return -1;
-  }
   ckb_init(ctx);
 
   if (duk_peval_lstring(ctx, (const char *) args_bytes_seg.ptr, args_bytes_seg.size) != 0) {
