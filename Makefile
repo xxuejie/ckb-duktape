@@ -7,15 +7,21 @@ APP_CFLAGS := $(CFLAGS) -Iduktape -Ic -Ideps/ckb-c-stdlib -Ideps/molecule -Wall 
 LDFLAGS := -lm -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections -Wl,-s
 CURRENT_DIR := $(shell pwd)
 
-all: build/duktape build/repl
+all: build/duktape build/repl build/load0
 
 build/duktape: build/entry.o build/duktape.o
+	$(LD) $^ -o $@ $(LDFLAGS)
+
+build/load0: build/load0.o build/duktape.o
 	$(LD) $^ -o $@ $(LDFLAGS)
 
 build/repl: build/repl.o build/duktape.o
 	$(LD) $^ -o $@ $(LDFLAGS)
 
 build/entry.o: c/entry.c c/glue.h
+	$(CC) $(APP_CFLAGS) $< -c -o $@
+
+build/load0.o: c/load0.c c/glue.h
 	$(CC) $(APP_CFLAGS) $< -c -o $@
 
 build/repl.o: c/repl.c c/glue.h
@@ -25,7 +31,7 @@ build/duktape.o: duktape/duktape.c
 	$(CC) $(APP_CFLAGS) $< -c -o $@
 
 clean:
-	rm -rf build/*.o build/duktape build/repl
+	rm -rf build/*.o build/duktape build/repl build/load0
 
 dist: clean all
 
