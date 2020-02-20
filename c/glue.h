@@ -345,14 +345,14 @@ void ckb_init(duk_context *ctx) {
   duk_push_c_function(ctx, duk_ckb_load_script_hash, 0);
   duk_put_prop_string(ctx, -2, "load_script_hash");
 
-  duk_push_c_function(ctx, duk_ckb_load_script, 2);
+  duk_push_c_function(ctx, duk_ckb_load_script, 1);
   duk_put_prop_string(ctx, -2, "load_script");
-  duk_push_c_function(ctx, duk_ckb_raw_load_script, 1);
+  duk_push_c_function(ctx, duk_ckb_raw_load_script, 2);
   duk_put_prop_string(ctx, -2, "raw_load_script");
 
-  duk_push_c_function(ctx, duk_ckb_load_transaction, 2);
+  duk_push_c_function(ctx, duk_ckb_load_transaction, 1);
   duk_put_prop_string(ctx, -2, "load_transaction");
-  duk_push_c_function(ctx, duk_ckb_raw_load_transaction, 1);
+  duk_push_c_function(ctx, duk_ckb_raw_load_transaction, 2);
   duk_put_prop_string(ctx, -2, "raw_load_transaction");
 
   duk_push_c_function(ctx, duk_ckb_raw_load_cell, 4);
