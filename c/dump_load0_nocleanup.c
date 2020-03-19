@@ -45,8 +45,8 @@ int main() {
   }
 
   /* Skipping cleanup step to further save cycles */
-  duk_pop(ctx);
-  duk_destroy_heap(ctx);
+  /* duk_pop(ctx); */
+  /* duk_destroy_heap(ctx); */
 
   return 0;
 }
