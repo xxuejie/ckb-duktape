@@ -1,0 +1,16 @@
+import blockchain;
+
+struct ExistingCell {
+  index: Uint32,
+  source: Uint64,
+}
+
+union SourceOrBytecode {
+  Bytes,
+  ExistingCell,
+}
+
+table Input {
+  source: SourceOrBytecode,
+  args: BytesVec,
+}

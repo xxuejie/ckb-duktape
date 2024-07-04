@@ -441,4 +441,136 @@ void ckb_init(duk_context *ctx) {
   duk_put_global_string(ctx, "CKB");
 }
 
+#include "args.h"
+
+#ifndef BUFFER_SIZE
+#define BUFFER_SIZE 32768
+#endif
+
+#define ERROR_LOADING_SCRIPT 100
+#define ERROR_DUKTAPE 101
+#define ERROR_LOADING_DATA 102
+
+#define ITEM_ID_SOURCE 0
+#define ITEM_ID_BYTECODE 1
+
+int _ckb_load_js_source(duk_context *ctx, const uint8_t *data, size_t size) {
+  if (size == 0) {
+    /* Empty string here can be a special case where we don't want to load any source */
+    return 0;
+  }
+  if (data[0] == 0xbf) {
+    /* Loading bytecode */
+    void *buf = duk_push_fixed_buffer(ctx, size);
+    memcpy(buf, data, size);
+    duk_load_function(ctx);
+  } else {
+    /* Loading JS source */
+    if (duk_pcompile_lstring(ctx, 0, (const char *) data, size) != 0) {
+      ckb_debug(duk_safe_to_string(ctx, -1));
+      return ERROR_DUKTAPE;
+    }
+  }
+
+  /* Provide a this value for convenience */
+  duk_push_global_object(ctx);
+
+  if (duk_pcall_method(ctx, 0) != 0) {
+    ckb_debug(duk_safe_to_string(ctx, -1));
+    return ERROR_DUKTAPE;
+  }
+
+  return CKB_SUCCESS;
+}
+
+int ckb_load_js_source(duk_context *ctx) {
+  unsigned char script[BUFFER_SIZE];
+  uint64_t len = BUFFER_SIZE;
+  int ret = ckb_load_script(script, &len, 0);
+  if (ret != CKB_SUCCESS) {
+    return ERROR_LOADING_SCRIPT;
+  }
+  if (len > BUFFER_SIZE) {
+    return ERROR_LOADING_SCRIPT;
+  }
+  mol_seg_t script_seg;
+  script_seg.ptr = (uint8_t *)script;
+  script_seg.size = len;
+  if (MolReader_Script_verify(&script_seg, false) != MOL_OK) {
+    return ERROR_LOADING_SCRIPT;
+  }
+  mol_seg_t args_seg = MolReader_Script_get_args(&script_seg);
+  mol_seg_t input_seg = MolReader_Bytes_raw_bytes(&args_seg);
+  if (input_seg.size == 0) {
+    return CKB_SUCCESS;
+  }
+
+  if (MolReader_Input_verify(&input_seg, false) != MOL_OK) {
+    return ERROR_LOADING_SCRIPT;
+  }
+
+  /* Prepare argv */
+  {
+    mol_seg_t js_args_seg = MolReader_Input_get_args(&input_seg);
+
+    /* We will use this in a sec */
+    duk_get_global_string(ctx, "CKB");
+
+    /* Create an array of ArrayBuffer holding args */
+    duk_push_array(ctx);
+    uint32_t length = MolReader_BytesVec_length(&js_args_seg);
+    for (uint32_t i = 0; i < length; i++) {
+      mol_seg_t item_seg = MolReader_BytesVec_get(&js_args_seg, i).seg;
+      mol_seg_t data = MolReader_Bytes_raw_bytes(&item_seg);
+
+      void *buf = duk_push_fixed_buffer(ctx, (duk_size_t) data.size);
+      memcpy(buf, data.ptr, (size_t) data.size);
+      duk_push_buffer_object(ctx, 0, 0, (duk_size_t) data.size, DUK_BUFOBJ_ARRAYBUFFER);    
+      duk_swap(ctx, 0, 1);
+      duk_pop(ctx);
+
+      duk_put_prop_index(ctx, -2, i);
+    }
+
+    /* The argv array can be accessed via CKB.ARGV */
+    duk_put_prop_string(ctx, -2, "ARGV");
+    duk_pop(ctx);    
+  }
+
+  /* Eval source code in duktape */
+  mol_seg_t source = MolReader_Input_get_source(&input_seg);
+  mol_union_t source_union = MolReader_SourceOrBytecode_unpack(&source);
+  switch (source_union.item_id) {
+    case ITEM_ID_BYTECODE: {
+      mol_seg_t existing_cell = source_union.seg;
+      mol_seg_t index_seg = MolReader_ExistingCell_get_index(&existing_cell);
+      uint32_t index = *((uint32_t *) index_seg.ptr);
+      mol_seg_t source_seg = MolReader_ExistingCell_get_source(&existing_cell);
+      uint64_t source = *((uint64_t *) source_seg.ptr);
+
+      uint64_t len = BUFFER_SIZE;
+      unsigned char data[BUFFER_SIZE];
+      ret = ckb_load_cell_data(data, &len, 0, (size_t) index, source);
+      if (ret != CKB_SUCCESS) {
+        return ERROR_LOADING_DATA;
+      }
+      if (len > BUFFER_SIZE) {
+        return ERROR_LOADING_DATA;
+      }
+      ret = _ckb_load_js_source(ctx, data, len);
+      if (ret != CKB_SUCCESS) { return ret; }      
+    } break;
+    case ITEM_ID_SOURCE: {
+      mol_seg_t data = MolReader_Bytes_raw_bytes(&source_union.seg);
+      ret = _ckb_load_js_source(ctx, data.ptr, (size_t) data.size);
+      if (ret != CKB_SUCCESS) { return ret; }
+    } break;
+    default: {
+      return ERROR_LOADING_SCRIPT;
+    } break;
+  }
+
+  return CKB_SUCCESS;
+}
+
 #endif  /* CKB_DUKTAPE_GLUE_H_ */

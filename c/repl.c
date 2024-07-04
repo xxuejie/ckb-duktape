@@ -7,6 +7,12 @@ int main() {
   duk_context *ctx = duk_create_heap_default();
   ckb_init(ctx);
 
+  int ret = ckb_load_js_source(ctx);
+  if (ret != 0) {
+    duk_destroy_heap(ctx);
+    return ret;
+  }
+
   duk_print_alert_init(ctx, 0 /*flags*/);
 
   handle_interactive(ctx);
