@@ -1,9 +1,10 @@
 #ifndef CKB_DUKTAPE_GLUE_H_
 #define CKB_DUKTAPE_GLUE_H_
 
-#include "ckb_syscalls.h"
-#include "duktape.h"
+#include "ckb_consts.h"
+#include "ckb_syscall_apis.h"
 
+#include "duktape.h"
 duk_double_t dummy_get_now(void) {
   /*
    * Return a fixed time here as a dummy value since CKB does not support

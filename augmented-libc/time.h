@@ -1,0 +1,4 @@
+#ifndef AUGMENTED_LIBC_TIME_H_
+#define AUGMENTED_LIBC_TIME_H_
+
+#endif /* AUGMENTED_LIBC_TIME_H_ */

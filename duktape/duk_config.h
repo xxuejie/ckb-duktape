@@ -3096,6 +3096,13 @@ typedef struct duk_hthread duk_context;
  */
 
 /* __OVERRIDE_DEFINES__ */
+extern duk_double_t dummy_get_now(void);
+#undef DUK_USE_DATE_NOW_TIME
+#undef DUK_USE_DATE_TZO_GMTIME
+#define DUK_USE_DATE_GET_NOW(ctx) dummy_get_now()
+#define DUK_USE_DATE_GET_LOCAL_TZOFFSET(d)  0
+#define DUK_USE_FASTINT
+#undef DUK_USE_JX
 
 /*
  *  Conditional includes
