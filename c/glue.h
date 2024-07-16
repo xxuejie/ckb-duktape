@@ -58,10 +58,9 @@ static duk_ret_t duk_ckb_debug(duk_context *ctx) {
 
 typedef int (*load_hash_function)(void *, uint64_t *, size_t);
 typedef int (*load_single_function)(void *, uint64_t *, size_t);
-typedef int (*load_function)(void *, uint64_t *, size_t, size_t,
-                             size_t);
-typedef int (*load_by_field_function)(void *, uint64_t *, size_t,
-                                      size_t, size_t, size_t);
+typedef int (*load_function)(void *, uint64_t *, size_t, size_t, size_t);
+typedef int (*load_by_field_function)(void *, uint64_t *, size_t, size_t,
+                                      size_t, size_t);
 
 static duk_ret_t duk_ckb_load_hash(duk_context *ctx, load_hash_function f) {
   uint64_t len = 32;
@@ -83,7 +82,8 @@ static duk_ret_t duk_ckb_load_hash(duk_context *ctx, load_hash_function f) {
   return 1;
 }
 
-static duk_ret_t duk_ckb_raw_load_single(duk_context *ctx, load_single_function f) {
+static duk_ret_t duk_ckb_raw_load_single(duk_context *ctx,
+                                         load_single_function f) {
   if (!(duk_is_buffer_data(ctx, 0) && duk_is_number(ctx, 1))) {
     duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
     return duk_throw(ctx);
@@ -450,13 +450,15 @@ void ckb_init(duk_context *ctx) {
 #define ERROR_LOADING_SCRIPT 100
 #define ERROR_DUKTAPE 101
 #define ERROR_LOADING_DATA 102
+#define ERROR_HEX 103
 
 #define ITEM_ID_SOURCE 0
 #define ITEM_ID_BYTECODE 1
 
 int _ckb_load_js_source(duk_context *ctx, const uint8_t *data, size_t size) {
   if (size == 0) {
-    /* Empty string here can be a special case where we don't want to load any source */
+    /* Empty string here can be a special case where we don't want to load any
+     * source */
     return 0;
   }
   if (data[0] == 0xbf) {
@@ -466,7 +468,7 @@ int _ckb_load_js_source(duk_context *ctx, const uint8_t *data, size_t size) {
     duk_load_function(ctx);
   } else {
     /* Loading JS source */
-    if (duk_pcompile_lstring(ctx, 0, (const char *) data, size) != 0) {
+    if (duk_pcompile_lstring(ctx, 0, (const char *)data, size) != 0) {
       ckb_debug(duk_safe_to_string(ctx, -1));
       return ERROR_DUKTAPE;
     }
@@ -483,31 +485,88 @@ int _ckb_load_js_source(duk_context *ctx, const uint8_t *data, size_t size) {
   return CKB_SUCCESS;
 }
 
-int ckb_load_js_source(duk_context *ctx) {
-  unsigned char script[BUFFER_SIZE];
-  uint64_t len = BUFFER_SIZE;
-  int ret = ckb_load_script(script, &len, 0);
-  if (ret != CKB_SUCCESS) {
-    return ERROR_LOADING_SCRIPT;
+int to_int(char ch, uint8_t *value) {
+  if (ch >= '0' && ch <= '9') {
+    *value = ch - '0';
+    return 0;
+  } else if (ch >= 'a' && ch <= 'f') {
+    *value = ch - 'a' + 10;
+    return 0;
+  } else if (ch >= 'A' && ch <= 'F') {
+    *value = ch = 'A' + 10;
+    return 0;
   }
-  if (len > BUFFER_SIZE) {
-    return ERROR_LOADING_SCRIPT;
+  return 2;
+}
+
+int decode_hex_in_place(char *buf, size_t *len) {
+  size_t src = 0;
+  size_t dst = 0;
+
+  while (buf[src] != '\0') {
+    if (buf[src + 1] == '\0') {
+      return 3;
+    }
+    uint8_t higher = 0;
+    int ret = to_int(buf[src], &higher);
+    if (ret != 0) {
+      return ret;
+    }
+    uint8_t lower = 0;
+    ret = to_int(buf[src + 1], &lower);
+    if (ret != 0) {
+      return ret;
+    }
+
+    src += 2;
+    buf[dst++] = (higher << 4) | lower;
   }
-  mol_seg_t script_seg;
-  script_seg.ptr = (uint8_t *)script;
-  script_seg.size = len;
-  if (MolReader_Script_verify(&script_seg, false) != MOL_OK) {
-    return ERROR_LOADING_SCRIPT;
+  *len = dst;
+  return 0;
+}
+
+int ckb_load_js_source(duk_context *ctx, int argc, char *argv[]) {
+  mol_seg_t input_seg;
+
+  if (argc >= 1) {
+    uint64_t len = 0;
+    int ret = decode_hex_in_place(argv[0], &len);
+    if (ret != 0) {
+      return ERROR_HEX;
+    }
+    input_seg.ptr = (uint8_t *)argv[0];
+    input_seg.size = (mol_num_t)len;
+  } else {
+    /* Empty argv, try loading JS source from script args */
+    unsigned char script[BUFFER_SIZE];
+    uint64_t len = BUFFER_SIZE;
+    int ret = ckb_load_script(script, &len, 0);
+    if (ret != CKB_SUCCESS) {
+      return ERROR_LOADING_SCRIPT;
+    }
+    if (len > BUFFER_SIZE) {
+      return ERROR_LOADING_SCRIPT;
+    }
+    mol_seg_t script_seg;
+    script_seg.ptr = (uint8_t *)script;
+    script_seg.size = len;
+    if (MolReader_Script_verify(&script_seg, false) != MOL_OK) {
+      return ERROR_LOADING_SCRIPT;
+    }
+    mol_seg_t args_seg = MolReader_Script_get_args(&script_seg);
+    input_seg = MolReader_Bytes_raw_bytes(&args_seg);
+    if (input_seg.size == 0) {
+      return CKB_SUCCESS;
+    }
   }
-  mol_seg_t args_seg = MolReader_Script_get_args(&script_seg);
-  mol_seg_t input_seg = MolReader_Bytes_raw_bytes(&args_seg);
-  if (input_seg.size == 0) {
-    return CKB_SUCCESS;
-  }
+
+  ckb_debug("Before verify");
 
   if (MolReader_Input_verify(&input_seg, false) != MOL_OK) {
     return ERROR_LOADING_SCRIPT;
   }
+
+  ckb_debug("Verified");
 
   /* Prepare argv */
   {
@@ -519,14 +578,16 @@ int ckb_load_js_source(duk_context *ctx) {
     /* Create an array of ArrayBuffer holding args */
     duk_push_array(ctx);
     uint32_t length = MolReader_BytesVec_length(&js_args_seg);
+
     for (uint32_t i = 0; i < length; i++) {
       mol_seg_t item_seg = MolReader_BytesVec_get(&js_args_seg, i).seg;
       mol_seg_t data = MolReader_Bytes_raw_bytes(&item_seg);
 
-      void *buf = duk_push_fixed_buffer(ctx, (duk_size_t) data.size);
-      memcpy(buf, data.ptr, (size_t) data.size);
-      duk_push_buffer_object(ctx, 0, 0, (duk_size_t) data.size, DUK_BUFOBJ_ARRAYBUFFER);    
-      duk_swap(ctx, 0, 1);
+      void *buf = duk_push_fixed_buffer(ctx, (duk_size_t)data.size);
+      memcpy(buf, data.ptr, (size_t)data.size);
+      duk_push_buffer_object(ctx, -1, 0, (duk_size_t)data.size,
+                             DUK_BUFOBJ_ARRAYBUFFER);
+      duk_swap(ctx, -1, -2);
       duk_pop(ctx);
 
       duk_put_prop_index(ctx, -2, i);
@@ -534,8 +595,10 @@ int ckb_load_js_source(duk_context *ctx) {
 
     /* The argv array can be accessed via CKB.ARGV */
     duk_put_prop_string(ctx, -2, "ARGV");
-    duk_pop(ctx);    
+    duk_pop(ctx);
   }
+
+  ckb_debug("Before eval");
 
   /* Eval source code in duktape */
   mol_seg_t source = MolReader_Input_get_source(&input_seg);
@@ -544,13 +607,13 @@ int ckb_load_js_source(duk_context *ctx) {
     case ITEM_ID_BYTECODE: {
       mol_seg_t existing_cell = source_union.seg;
       mol_seg_t index_seg = MolReader_ExistingCell_get_index(&existing_cell);
-      uint32_t index = *((uint32_t *) index_seg.ptr);
+      uint32_t index = *((uint32_t *)index_seg.ptr);
       mol_seg_t source_seg = MolReader_ExistingCell_get_source(&existing_cell);
-      uint64_t source = *((uint64_t *) source_seg.ptr);
+      uint64_t source = *((uint64_t *)source_seg.ptr);
 
       uint64_t len = BUFFER_SIZE;
       unsigned char data[BUFFER_SIZE];
-      ret = ckb_load_cell_data(data, &len, 0, (size_t) index, source);
+      int ret = ckb_load_cell_data(data, &len, 0, (size_t)index, source);
       if (ret != CKB_SUCCESS) {
         return ERROR_LOADING_DATA;
       }
@@ -558,12 +621,16 @@ int ckb_load_js_source(duk_context *ctx) {
         return ERROR_LOADING_DATA;
       }
       ret = _ckb_load_js_source(ctx, data, len);
-      if (ret != CKB_SUCCESS) { return ret; }      
+      if (ret != CKB_SUCCESS) {
+        return ret;
+      }
     } break;
     case ITEM_ID_SOURCE: {
       mol_seg_t data = MolReader_Bytes_raw_bytes(&source_union.seg);
-      ret = _ckb_load_js_source(ctx, data.ptr, (size_t) data.size);
-      if (ret != CKB_SUCCESS) { return ret; }
+      int ret = _ckb_load_js_source(ctx, data.ptr, (size_t)data.size);
+      if (ret != CKB_SUCCESS) {
+        return ret;
+      }
     } break;
     default: {
       return ERROR_LOADING_SCRIPT;
@@ -573,4 +640,4 @@ int ckb_load_js_source(duk_context *ctx) {
   return CKB_SUCCESS;
 }
 
-#endif  /* CKB_DUKTAPE_GLUE_H_ */
+#endif /* CKB_DUKTAPE_GLUE_H_ */

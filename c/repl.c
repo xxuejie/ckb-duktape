@@ -3,11 +3,11 @@
 void duk_print_alert_init(duk_context *ctx, duk_uint_t flags);
 static int handle_interactive(duk_context *ctx);
 
-int main() {
+int main(int argc, char* argv[]) {
   duk_context *ctx = duk_create_heap_default();
   ckb_init(ctx);
 
-  int ret = ckb_load_js_source(ctx);
+  int ret = ckb_load_js_source(ctx, argc, argv);
   if (ret != 0) {
     duk_destroy_heap(ctx);
     return ret;
