@@ -560,13 +560,9 @@ int ckb_load_js_source(duk_context *ctx, int argc, char *argv[]) {
     }
   }
 
-  ckb_debug("Before verify");
-
   if (MolReader_Input_verify(&input_seg, false) != MOL_OK) {
     return ERROR_LOADING_SCRIPT;
   }
-
-  ckb_debug("Verified");
 
   /* Prepare argv */
   {
@@ -597,8 +593,6 @@ int ckb_load_js_source(duk_context *ctx, int argc, char *argv[]) {
     duk_put_prop_string(ctx, -2, "ARGV");
     duk_pop(ctx);
   }
-
-  ckb_debug("Before eval");
 
   /* Eval source code in duktape */
   mol_seg_t source = MolReader_Input_get_source(&input_seg);
