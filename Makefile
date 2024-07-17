@@ -1,13 +1,21 @@
-TARGET := riscv64-unknown-elf
-CC := $(TARGET)-gcc
-LD := $(TARGET)-gcc
-CFLAGS := -Os -DCKB_NO_MMU -D__riscv_soft_float -D__riscv_float_abi_soft
-APP_CFLAGS := $(CFLAGS) -Iduktape -Ic -Ischema -Ideps/ckb-c-stdlib -Ideps/ckb-c-stdlib/molecule -Wall -Werror
-# LDFLAGS := -lm -g
-LDFLAGS := -lm -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections -Wl,-s
-CURRENT_DIR := $(shell pwd)
+CLANG := $(shell scripts/find_clang)
+LD := $(subst clang,ld.lld,$(CLANG))
 
-all: build/duktape build/repl build/dump_load build/native_dump_bytecode build/dump_load_nocleanup build/native_args_assembler
+MUSL := deps/musl
+BUILTINS := deps/builtins
+
+CFLAGS := -O2 -g --target=riscv64 -march=rv64imc_zba_zbb_zbc_zbs \
+	-fdata-sections -ffunction-sections -fvisibility=hidden \
+	-Wall -Werror -Wno-unused-but-set-variable \
+	-nostdinc --sysroot $(MUSL)/release -isystem $(MUSL)/release/include \
+	-Iduktape -Ic -Ischema -Ideps/ckb-c-stdlib -Ideps/ckb-c-stdlib/molecule
+
+LIBS := build/duktape.o $(BUILTINS)/build/libcompiler-rt.a
+LDFLAGS := build/duktape.o -static --gc-sections -s -L $(MUSL)/release/lib -L$(BUILTINS)/build -lc -lm -lgcc -lcompiler-rt
+
+BINS := build/duktape build/repl build/dump_load build/native_dump_bytecode build/dump_load_nocleanup build/native_args_assembler
+
+all: $(BINS)
 
 build/native_dump_bytecode: c/native_dump_bytecode.c duktape/duktape.c
 	gcc -Wall -Werror -Iduktape -O3 $^ -o $@ -lm
@@ -15,35 +23,40 @@ build/native_dump_bytecode: c/native_dump_bytecode.c duktape/duktape.c
 build/native_args_assembler: c/native_args_assembler.c
 	gcc -Wall -Werror -Ischema -Ideps/ckb-c-stdlib/molecule -O3 $^ -o $@
 
-build/duktape: build/entry.o build/duktape.o
-	$(LD) $^ -o $@ $(LDFLAGS)
+build/duktape: build/entry.o $(LIBS)
+	$(LD) $< -o $@ $(LDFLAGS)
 
-build/dump_load: build/dump_load.o build/duktape.o
-	$(LD) $^ -o $@ $(LDFLAGS)
+build/dump_load: build/dump_load.o $(LIBS)
+	$(LD) $< -o $@ $(LDFLAGS)
 
-build/dump_load_nocleanup: build/dump_load_nocleanup.o build/duktape.o
-	$(LD) $^ -o $@ $(LDFLAGS)
+build/dump_load_nocleanup: build/dump_load_nocleanup.o $(LIBS)
+	$(LD) $< -o $@ $(LDFLAGS)
 
-build/repl: build/repl.o build/duktape.o
-	$(LD) $^ -o $@ $(LDFLAGS)
+build/repl: build/repl.o build/duktape.o $(LIBS)
+	$(LD) $< -o $@ $(LDFLAGS)
 
-build/entry.o: c/entry.c c/glue.h
-	$(CC) $(APP_CFLAGS) $< -c -o $@
+build/%.o: c/%.c c/glue.h $(MUSL)/release/include/stddef.h
+	$(CLANG) $(CFLAGS) $< -c -o $@
 
-build/dump_load.o: c/dump_load.c c/glue.h
-	$(CC) $(APP_CFLAGS) $< -c -o $@
+build/duktape.o: duktape/duktape.c $(MUSL)/release/include/stddef.h
+	$(CLANG) $(CFLAGS) $< -c -o $@
 
-build/dump_load_nocleanup.o: c/dump_load_nocleanup.c c/glue.h
-	$(CC) $(APP_CFLAGS) $< -c -o $@
+$(BUILTINS)/build/libcompiler-rt.a:
+	cd $(BUILTINS) && \
+		make CC=$(CLANG) \
+		  LD=$(subst clang,ld.lld,$(CLANG)) \
+			OBJCOPY=$(subst clang,llvm-objcopy,$(CLANG)) \
+			AR=$(subst clang,llvm-ar,$(CLANG)) \
+			RANLIB=$(subst clang,llvm-ranlib,$(CLANG))
 
-build/repl.o: c/repl.c c/glue.h
-	$(CC) $(APP_CFLAGS) $< -c -o $@
-
-build/duktape.o: duktape/duktape.c
-	$(CC) $(APP_CFLAGS) $< -c -o $@
+$(MUSL)/release/include/stddef.h:
+	cd $(MUSL) && \
+		CLANG=$(CLANG) ./ckb/build.sh
 
 clean:
-	rm -rf build/*.o build/duktape build/repl build/dump_load build/native_dump_bytecode build/dump_load_nocleanup build/native_args_assembler
+	rm -rf build/*.o $(BINS)
+	cd $(BUILTINS) && make clean
+	cd $(MUSL) && make clean && rm -rf release
 
 dist: clean all
 

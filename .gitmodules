@@ -1,3 +1,9 @@
 [submodule "deps/ckb-c-stdlib"]
 	path = deps/ckb-c-stdlib
 	url = https://github.com/nervosnetwork/ckb-c-stdlib
+[submodule "deps/builtins"]
+	path = deps/builtins
+	url = https://github.com/nervosnetwork/compiler-rt-builtins-riscv
+[submodule "deps/musl"]
+	path = deps/musl
+	url = https://github.com/xxuejie/musl
