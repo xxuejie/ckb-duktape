@@ -1,5 +1,8 @@
 #include "glue.h"
 
+#include <ckb/musl_options.h>
+CKB_MUSL_DISABLE_STDOUT_TO_CKB_DEBUG;
+
 void duk_print_alert_init(duk_context *ctx, duk_uint_t flags);
 static int handle_interactive(duk_context *ctx);
 
