@@ -250,6 +250,31 @@ static duk_ret_t duk_ckb_load_by_field(duk_context *ctx,
   return 1;
 }
 
+static duk_ret_t duk_ckb_load_current_cycles(duk_context *ctx) {
+  uint64_t cycles = ckb_current_cycles();
+  if (cycles <= 0x7fffffff) {
+    duk_push_int(ctx, (duk_int_t) cycles);
+  } else {
+    duk_push_number(ctx, (duk_double_t) cycles);
+  }
+  return 1;
+}
+
+static duk_ret_t duk_ckb_assert(duk_context *ctx) {
+  if (!duk_is_boolean(ctx, 0)) {
+    duk_push_error_object(ctx, DUK_ERR_EVAL_ERROR, "Invalid arguments");
+    return duk_throw(ctx);
+  }
+
+  if (!duk_get_boolean(ctx, 0)) {
+    ckb_debug("CKB assert failure!");
+    ckb_exit(1);
+  }
+
+  duk_pop(ctx);
+  return 0;
+}
+
 static duk_ret_t duk_ckb_load_tx_hash(duk_context *ctx) {
   return duk_ckb_load_hash(ctx, ckb_load_tx_hash);
 }
@@ -338,6 +363,12 @@ void ckb_init(duk_context *ctx) {
 
   duk_push_c_function(ctx, duk_ckb_debug, DUK_VARARGS);
   duk_put_prop_string(ctx, -2, "debug");
+
+  duk_push_c_function(ctx, duk_ckb_assert, 1);
+  duk_put_prop_string(ctx, -2, "assert");
+
+  duk_push_c_function(ctx, duk_ckb_load_current_cycles, 0);
+  duk_put_prop_string(ctx, -2, "current_cycles");
 
   duk_push_c_function(ctx, duk_ckb_load_tx_hash, 0);
   duk_put_prop_string(ctx, -2, "load_tx_hash");
